@@ -24,6 +24,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final PpidService _ppidService = PpidService();
+  
+  // ✅ FIX: Gunakan List<PpidModel> bukan List<dynamic>
   List<PpidModel> _ppidData = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -34,35 +36,39 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadPpidData();
   }
 
- Future<void> _loadPpidData() async {
-  setState(() {
-    _isLoading = true;
-    _errorMessage = null;
-  });
+  Future<void> _loadPpidData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
-  try {
-    print('🔍 Loading PPID for user_id: ${widget.userId}');
-    
-    final data = await _ppidService.getPpidByUserId(widget.userId);
-    
-    print('📦 Received ${data.length} items from API');
-    for (var item in data) {
-      print('   - ID: ${item.id}, User ID: ${item.userId}, Nama: ${item.nama}');
+      final data = await _ppidService.getPpidByUser(widget.userId);
+      
+      print('📊 Received ${data.length} items from API');
+      for (var item in data) {
+        print('   - ID: ${item['id']}, User ID: ${item['user_id']}, Nama: ${item['nama']}');
+      }
+
+      setState(() {
+        // ✅ FIX: _ppidData bukan _ppidList
+        _ppidData = data.map((item) => PpidModel.fromJson(item)).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Error loading PPID: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error: $e';
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading data: $e')),
+        );
+      }
     }
-    
-    setState(() {
-      _ppidData = data;
-      _isLoading = false;
-    });
-  } catch (e) {
-    print('❌ Error loading PPID: $e');
-    setState(() {
-      _errorMessage = e.toString();
-      _isLoading = false;
-    });
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -311,7 +317,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              DataCell(Text(ppid.jenisInformasi, style: const TextStyle(fontSize: 11))),
+             DataCell(
+  Text(
+    ppid.jenisInformasi != null && ppid.jenisInformasi!.isNotEmpty
+        ? ppid.jenisInformasi!.join(', ')  // Join array jadi string
+        : '-',
+    style: const TextStyle(fontSize: 11),
+  ),
+),
               DataCell(
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -379,7 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 80),
+            const SizedBox(width: 60),
             Expanded(
               child: InkWell(
                 onTap: () => setState(() => _currentIndex = 1),
@@ -415,4 +428,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}  // ✅ Closing bracket yang hilang
+}

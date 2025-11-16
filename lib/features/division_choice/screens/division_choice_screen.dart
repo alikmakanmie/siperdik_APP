@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';  // ✅ TAMBAH
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/ppid_service.dart';
 
@@ -20,9 +21,11 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
   int? _selectedDivision;
   int _selectedCategory = 0;
   int? _selectedRingkasan;
-  final PpidService _ppidService = PpidService();  // ✅ TAMBAH BARIS INI
+  final PpidService _ppidService = PpidService();
 
   File? _thumbnailFile;
+  File? _pdfFile;      // ✅ TAMBAH
+  File? _wordFile;     // ✅ TAMBAH
   bool _isUploading = false;
   final ImagePicker _picker = ImagePicker();
 
@@ -55,6 +58,68 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
     return [];
   }
 
+  // ✅ TAMBAH: Pick PDF file
+  Future<void> _pickPdfFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result != null) {
+        setState(() => _pdfFile = File(result.files.single.path!));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('PDF file berhasil dipilih'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih PDF: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ TAMBAH: Pick Word file
+  Future<void> _pickWordFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['doc', 'docx'],
+      );
+
+      if (result != null) {
+        setState(() => _wordFile = File(result.files.single.path!));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Word file berhasil dipilih'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih Word: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _pickThumbnail() async {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -81,23 +146,7 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
     }
   }
 
-  void _showFilePickerDialog(String type) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Pilih $type'),
-        content: Text('Fitur upload $type akan diimplementasikan'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-    Future<void> _handleSubmit() async {
+  Future<void> _handleSubmit() async {
     if (_selectedDivision == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -122,7 +171,6 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
     setState(() => _isUploading = true);
 
     try {
-      // Mapping kategori
       String kategoriValue = '';
       if (_selectedCategory == 0) {
         kategoriValue = 'informasi_berkala';
@@ -132,7 +180,6 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
         kategoriValue = 'informasi_serta_merta';
       }
 
-      // Mapping ringkasan
       String? jenisInformasi;
       if (_selectedRingkasan != null) {
         if (_selectedCategory == 0) {
@@ -142,9 +189,9 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
         }
       }
 
-      print('🚀 Sending: User ${widget.userId}, Divisi ${_divisionList[_selectedDivision!]}, Kategori $kategoriValue');
+      print('🚀 Sending: User ${widget.userId}, Divisi ${_divisionList[_selectedDivision!]}');
 
-      // Kirim ke API
+      // ✅ Kirim dengan PDF & Word
       await _ppidService.createPpid(
         userId: widget.userId,
         nama: 'Data PPID ${_divisionList[_selectedDivision!]}',
@@ -152,6 +199,8 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
         kategoriInformasi: kategoriValue,
         jenisInformasi: jenisInformasi,
         thumbnailFile: _thumbnailFile,
+        pdfFile: _pdfFile,      // ✅ TAMBAH
+        wordFile: _wordFile,    // ✅ TAMBAH
       );
 
       if (mounted) {
@@ -177,7 +226,6 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -346,11 +394,14 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
             ),
             const SizedBox(height: 16),
             
+            // ✅ UPDATE: File upload section
             _buildFileUploadCard(
               label: 'upload file pdf.',
               iconPath: 'PDF',
               iconColor: Colors.red,
-              onTap: () => _showFilePickerDialog('PDF'),
+              onTap: _pickPdfFile,  // ✅ GANTI
+              file: _pdfFile,
+              onClear: () => setState(() => _pdfFile = null),
             ),
             const SizedBox(height: 12),
             
@@ -358,7 +409,9 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
               label: 'upload file word.',
               iconPath: 'W',
               iconColor: Colors.blue,
-              onTap: () => _showFilePickerDialog('Word'),
+              onTap: _pickWordFile,  // ✅ GANTI
+              file: _wordFile,
+              onClear: () => setState(() => _wordFile = null),
             ),
             const SizedBox(height: 12),
             
@@ -507,8 +560,13 @@ class _DivisionChoiceScreenState extends State<DivisionChoiceScreen> {
           children: [
             Expanded(
               child: Text(
-                label,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
+                file != null ? file.path.split('/').last : label,  // ✅ SHOW FILENAME
+                style: TextStyle(
+                  fontSize: 14,
+                  color: file != null ? AppColors.foreground : const Color(0xFF9E9E9E),
+                  fontWeight: file != null ? FontWeight.w500 : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (file != null && onClear != null)

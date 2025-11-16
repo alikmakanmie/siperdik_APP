@@ -1,182 +1,111 @@
+// lib/core/services/ppid_service.dart
+
 import 'dart:io';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
-import '../models/ppid_model.dart';
+import 'dart:convert';
 
 class PpidService {
-  final String baseUrl = 'http://192.168.1.40:8000';  // ✅ Sesuaikan IP
+  final String baseUrl = 'http://192.168.1.40:8000/api';
 
-  // GET: Fetch PPID by user_id
-  Future<List<PpidModel>> getPpidByUserId(int userId) async {
-    try {
-      final url = '$baseUrl/api/ppid?user_id=$userId';
-      print('🔍 Calling API: $url');
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Connection timeout');
-        },
-      );
-
-      print('📡 Status: ${response.statusCode}');
-      print('📦 Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final dynamic responseData = json.decode(response.body);
-        
-        List<dynamic> ppidList = [];
-        
-        if (responseData is Map<String, dynamic>) {
-          if (responseData.containsKey('success') && responseData['success'] == true) {
-            ppidList = responseData['data'] ?? [];
-          } else if (responseData.containsKey('data')) {
-            ppidList = responseData['data'] ?? [];
-          }
-        } else if (responseData is List) {
-          ppidList = responseData;
-        }
-        
-        print('✅ Found ${ppidList.length} items');
-        
-        for (var item in ppidList) {
-          if (item is Map<String, dynamic>) {
-            print('   - ID: ${item['id']}, User ID: ${item['user_id']}, Nama: ${item['nama']}');
-          }
-        }
-        
-        return ppidList.map((item) => PpidModel.fromJson(item as Map<String, dynamic>)).toList();
-      } else {
-        throw Exception('HTTP ${response.statusCode}: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Error: $e');
-      rethrow;
-    }
-  }
-
- // POST: Create PPID
-Future<void> createPpid({
-  required int userId,
-  required String nama,
-  required String divisi,
-  required String kategoriInformasi,
-  String? jenisInformasi,
-  File? thumbnailFile,
-}) async {
-  try {
-    var uri = Uri.parse('$baseUrl/api/ppid');
-    var request = http.MultipartRequest('POST', uri);
-
-    // Add fields
-    request.fields['user_id'] = userId.toString();
-    request.fields['nama'] = nama;
-    request.fields['divisi'] = divisi;
-    request.fields['kategori_informasi'] = kategoriInformasi;
-    request.fields['status'] = 'menunggu';
-    
-    // ✅ Kirim sebagai JSON array
-    if (jenisInformasi != null) {
-      request.fields['jenis_informasi'] = json.encode([jenisInformasi]);  // Wrap dalam array
-    }
-
-    // Add Thumbnail
-    if (thumbnailFile != null) {
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'thumbnail',
-          thumbnailFile.path,
-          contentType: MediaType('image', 'jpeg'),
-        ),
-      );
-      print('📎 Thumbnail added');
-    }
-
-    print('🚀 Uploading to: $uri');
-    print('📦 Fields: ${request.fields}');
-
-    var response = await request.send();
-    var responseBody = await response.stream.bytesToString();
-
-    print('📡 Status: ${response.statusCode}');
-    print('📦 Response: $responseBody');
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      print('✅ Upload successful');
-    } else {
-      throw Exception('Upload failed: $responseBody');
-    }
-  } catch (e) {
-    print('❌ Error: $e');
-    rethrow;
-  }
-}
-
-
-  // PUT: Update PPID
-  Future<void> updatePpid({
-    required int ppidId,
-    String? nama,
-    String? divisi,
-    String? kategoriInformasi,
-    String? status,
+  Future<Map<String, dynamic>> createPpid({
+    required int userId,
+    required String nama,
+    required String divisi,
+    required String kategoriInformasi,
+    String? jenisInformasi,
+    File? thumbnailFile,
+    File? pdfFile,       // ✅ Parameter PDF
+    File? wordFile,      // ✅ Parameter Word
   }) async {
     try {
-      final url = '$baseUrl/api/ppid/$ppidId';
+      final uri = Uri.parse('$baseUrl/ppid');
+      final request = http.MultipartRequest('POST', uri);
+
+      // ✅ Add text fields
+      request.fields['user_id'] = userId.toString();
+      request.fields['nama'] = nama;
+      request.fields['divisi'] = divisi;
+      request.fields['kategori_informasi'] = kategoriInformasi;
       
-      Map<String, dynamic> body = {};
-      if (nama != null) body['nama'] = nama;
-      if (divisi != null) body['divisi'] = divisi;
-      if (kategoriInformasi != null) body['kategori_informasi'] = kategoriInformasi;
-      if (status != null) body['status'] = status;
+      if (jenisInformasi != null) {
+        request.fields['jenis_informasi'] = jenisInformasi;
+      }
 
-      final response = await http.put(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode(body),
-      );
+      // ✅ Add PDF file
+      if (pdfFile != null) {
+        print('📄 Uploading PDF: ${pdfFile.path}');
+        request.files.add(await http.MultipartFile.fromPath(
+          'file_pdf',  // ✅ MUST match Laravel field name
+          pdfFile.path,
+        ));
+      }
 
-      if (response.statusCode == 200) {
-        print('✅ PPID updated');
+      // ✅ Add Word file
+      if (wordFile != null) {
+        print('📝 Uploading Word: ${wordFile.path}');
+        request.files.add(await http.MultipartFile.fromPath(
+          'file_word',  // ✅ MUST match Laravel field name
+          wordFile.path,
+        ));
+      }
+
+      // ✅ Add Thumbnail
+      if (thumbnailFile != null) {
+        print('🖼️ Uploading Thumbnail: ${thumbnailFile.path}');
+        request.files.add(await http.MultipartFile.fromPath(
+          'thumnail',  // ✅ Typo di database Anda: 'thumnail' bukan 'thumbnail'
+          thumbnailFile.path,
+        ));
+      }
+
+      print('🚀 Sending request to: $uri');
+      print('📦 Fields: ${request.fields}');
+      print('📁 Files: ${request.files.length} files');
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('📡 Response Status: ${response.statusCode}');
+      print('📡 Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body);
       } else {
-        throw Exception('Failed to update: ${response.body}');
+        throw Exception('Failed to create PPID: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error: $e');
+      print('❌ Error in createPpid: $e');
       rethrow;
     }
   }
 
-  // DELETE: Delete PPID
-  Future<void> deletePpid(int ppidId, int userId) async {
+  // ✅ Get PPID list
+  Future<List<dynamic>> getPpidByUser(int userId) async {
     try {
-      final url = '$baseUrl/api/ppid/$ppidId?user_id=$userId';
+      final uri = Uri.parse('$baseUrl/ppid?user_id=$userId');
+      print('🔍 Loading PPID for user_id: $userId');
+      print('🔍 Calling API: $uri');
+
+      final response = await http.get(uri);
       
-      final response = await http.delete(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      );
+      print('📡 Status: ${response.statusCode}');
+      print('📡 Body: ${response.body}');
 
       if (response.statusCode == 200) {
-        print('✅ PPID deleted');
+        final data = json.decode(response.body);
+        final items = data['data'] as List;
+        
+        print('✅ Found ${items.length} items');
+        for (var item in items) {
+          print('   - ID: ${item['id']}, User ID: ${item['user_id']}, Nama: ${item['nama']}');
+        }
+        
+        return items;
       } else {
-        throw Exception('Failed to delete: ${response.body}');
+        throw Exception('Failed to load PPID');
       }
     } catch (e) {
-      print('❌ Error: $e');
+      print('❌ Error loading PPID: $e');
       rethrow;
     }
   }

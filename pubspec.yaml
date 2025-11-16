@@ -12,7 +12,7 @@ dependencies:
   http: ^1.1.0
   image_picker: ^1.0.4
   shared_preferences: ^2.2.2
-  file_picker: ^6.1.1  # ✅ TAMBAH INI
+  file_picker: ^8.1.2  # ✅ TAMBAH INI
 
 dev_dependencies:
   flutter_test:
